@@ -1,0 +1,16 @@
+variable,year,value,unit
+ProductionByTechnology,2025,450.5,PJ/yr
+ProductionByTechnology,2026,462.1,PJ/yr
+ProductionByTechnology,2027,478.3,PJ/yr
+AnnualEmissions,2025,120.4,MtCO2
+AnnualEmissions,2026,115.2,MtCO2
+AnnualEmissions,2027,109.8,MtCO2
+TotalDiscountedCost,2025,3200.0,$M
+TotalDiscountedCost,2026,3350.5,$M
+TotalDiscountedCost,2027,3490.2,$M
+TotalCapacityAnnual,2025,85.0,GW
+TotalCapacityAnnual,2026,88.5,GW
+TotalCapacityAnnual,2027,92.0,GW
+TotalAnnualTechnologyActivityByMode,2025,310.0,PJ/yr
+TotalAnnualTechnologyActivityByMode,2026,318.5,PJ/yr
+TotalAnnualTechnologyActivityByMode,2027,327.0,PJ/yr

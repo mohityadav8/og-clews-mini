@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OGCoreInputSchema",
+  "description": "Validated exchange file from CLEWS to OG-Core pipeline",
+  "type": "object",
+  "required": ["version", "scenario", "parameters"],
+  "properties": {
+    "version": { "type": "string" },
+    "scenario": { "type": "string" },
+    "parameters": {
+      "type": "object",
+      "required": ["p_m", "tau_c", "alpha_T", "delta", "g_y"],
+      "properties": {
+        "p_m": {
+          "description": "Import energy price index (from ProductionByTechnology)",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["year", "value"],
+            "properties": {
+              "year": { "type": "integer" },
+              "value": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "tau_c": {
+          "description": "Carbon tax rate (from AnnualEmissions)",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["year", "value"],
+            "properties": {
+              "year": { "type": "integer" },
+              "value": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "alpha_T": {
+          "description": "Government transfer rate (from TotalDiscountedCost)",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["year", "value"],
+            "properties": {
+              "year": { "type": "integer" },
+              "value": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "delta": {
+          "description": "Depreciation/capital formation rate (from ProductionByTechnology renewables)",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["year", "value"],
+            "properties": {
+              "year": { "type": "integer" },
+              "value": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "g_y": {
+          "description": "Technology productivity growth rate (from TotalCapacityAnnual)",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["year", "value"],
+            "properties": {
+              "year": { "type": "integer" },
+              "value": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
