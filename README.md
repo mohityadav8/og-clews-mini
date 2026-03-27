@@ -11,7 +11,6 @@ This project demonstrates the three core backend components I plan to build in M
 ---
 
 ## Project Structure
-
 ```
 og-clews-mini/
 ├── API/
@@ -35,15 +34,20 @@ og-clews-mini/
 ## What It Does
 
 ### ETL Pipeline (`etl_pipeline.py`)
-Implements the **CLEWS → OG-Core variable mapping** from the proposal:
+Implements the **CLEWS → OG-Core variable mapping**, with all parameter names verified
+against `ogcore/default_parameters.json` and `ogcore/parameters.py`:
 
-| CLEWS Output Variable | Transformation | OG-Core Parameter |
-|---|---|---|
-| `TotalAnnualTechnologyActivityByMode` | Normalize to GDP share | `p_m` (import energy price index) |
-| `AnnualEmissions` | Apply carbon price → % of GDP | `tau_c` (carbon tax rate) |
-| `TotalDiscountedCost` | Annualize → % of GDP | `alpha_T` (govt transfer rate) |
-| `ProductionByTechnology` | Compute investment share | `delta` (capital formation rate) |
-| `TotalCapacityAnnual` | Year-on-year growth rate | `g_y` (productivity growth rate) |
+| CLEWS Output Variable | Transformation | OG-Core Parameter | Source Definition |
+|---|---|---|---|
+| `TotalAnnualTechnologyActivityByMode` | Normalize to base-year index (base = 1.0) | `Z` | "Total factor productivity in firm production function" — shape `(T+S, M)` |
+| `AnnualEmissions` (CO₂) | Apply carbon price → effective consumption tax | `tau_c[t, energy_i]` | "Consumption tax rate" — shape `(T+S, I)`, targets energy good index |
+| `TotalDiscountedCost` | Divide by GDP reference | `alpha_T` | "Exogenous ratio of govt transfers to GDP" — shape `(T+S,)` |
+| `ProductionByTechnology` (renewables) | Renewable share of total production | `inv_tax_credit` | "Investment tax credit rate that reduces cost of new investment" — shape `(T+S, M)` |
+| `TotalCapacityAnnual` | Year-on-year capacity growth rate | `g_y_annual` | "Growth rate of labor augmenting technological change" — scalar, OG-Core converts internally via `rate_conversion()` |
+
+> **Note:** `p_m` does not exist in OG-Core (`Z` is correct). `delta` is computed
+> internally from `delta_annual` via `rate_conversion()` and is not an external ETL input.
+> `tau_c` is a 2D array `(T+S, I)` — each entry includes an `energy_good_index`.
 
 Each run validates the output against a JSON schema before saving.
 
@@ -69,7 +73,6 @@ REST endpoints mirroring the MUIOGO API structure:
 ---
 
 ## Setup & Run
-
 ```bash
 # Install dependencies
 pip install -r requirements.txt
@@ -79,7 +82,6 @@ python app.py
 ```
 
 ### Example API calls
-
 ```bash
 # 1. Run ETL pipeline
 curl -X POST http://localhost:5050/api/etl/clews-to-ogcore \
@@ -98,19 +100,21 @@ curl http://localhost:5050/api/ogcore/results/baseline
 ---
 
 ## Tests
-
 ```bash
 pytest tests/ -v
 ```
 
 Test coverage includes:
 - CSV loading and column validation
-- All 5 parameter transformations
+- All 5 parameter transformations with correct OG-Core names
+- `Z` normalized to 1.0 in base year
+- `tau_c` entries include `energy_good_index`
+- `inv_tax_credit` values capped at 1.0
+- `g_y_annual` within OG-Core validator bounds `[-0.01, 0.08]`
 - Schema validation (pass and fail cases)
-- Delta values capped at 1.0
-- Full ETL run file output
-- OGCoreRunner subprocess execution
-- Real-time log streaming
+- Regression test rejecting old incorrect param names (`p_m`, `delta`, `g_y`)
+- Full ETL run file output with version `1.1`
+- OGCoreRunner subprocess execution and real-time log streaming
 - Output key validation (`Y_path`, `r_path`, `w_path`, `pop_weights`, `total_revenue_path`)
 
 ---
@@ -119,12 +123,18 @@ Test coverage includes:
 
 This prototype directly demonstrates the patterns described in my proposal:
 
-- **Subprocess design**: `OGCoreRunner` uses `subprocess.Popen` with `stdout=PIPE` for process isolation and live log streaming — exactly as justified in the proposal's "subprocess vs importlib" section.
-- **ETL variable mapping**: The 5 forward-pipeline variables (`p_m`, `tau_c`, `alpha_T`, `delta`, `g_y`) are implemented with the unit transformations described in the proposal's variable mapping table.
-- **Schema validation**: Exchange files are validated before being passed to OG-Core, matching the "schema-validated CSV and JSON files" deliverable.
+- **Subprocess design**: `OGCoreRunner` uses `subprocess.Popen` with `stdout=PIPE` for
+  process isolation and live log streaming — exactly as justified in the proposal's
+  "subprocess vs importlib" section.
+- **ETL variable mapping**: All 5 forward-pipeline parameters (`Z`, `tau_c`, `alpha_T`,
+  `inv_tax_credit`, `g_y_annual`) are verified against the actual OG-Core source code
+  (`default_parameters.json` and `parameters.py`) rather than assumed names.
+- **Schema validation**: Exchange files are validated before being passed to OG-Core,
+  matching the "schema-validated CSV and JSON files" deliverable.
 - **Flask API structure**: Endpoints follow the `API/` Blueprint pattern from MUIOGO.
 
-The full GSoC implementation will extend this with bidirectional pipelines, a `WorkflowOrchestrator` for coupled runs, and a `ConvergenceEngine` for iterative execution.
+The full GSoC implementation will extend this with bidirectional pipelines, a
+`WorkflowOrchestrator` for coupled runs, and a `ConvergenceEngine` for iterative execution.
 
 ---
 

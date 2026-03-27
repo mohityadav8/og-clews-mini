@@ -1,6 +1,6 @@
 """
 Test suite for OG-CLEWS mini pipeline.
-Tests ETL transformation, schema validation, and OGCoreRunner execution.
+All OG-Core parameter names verified against ogcore/default_parameters.json.
 """
 
 import json
@@ -14,10 +14,8 @@ import pytest
 from API.Classes.etl_pipeline import CLEWSToOGCoreETL
 from API.Classes.ogcore_runner import OGCoreRunner
 
-SAMPLE_CSV = Path(__file__).parent / "exchange" / "data" / "clews_output.csv"
+SAMPLE_CSV = Path(__file__).parent.parent / "exchange" / "data" / "clews_output.csv"
 
-
-# ── ETL Tests ────────────────────────────────────────────────────────────────
 
 class TestCLEWSToOGCoreETL:
 
@@ -38,25 +36,48 @@ class TestCLEWSToOGCoreETL:
             self.etl.load(tmp)
         os.unlink(tmp)
 
-    def test_transform_produces_all_parameters(self):
+    def test_transform_produces_correct_ogcore_params(self):
+        """Param names must match real OG-Core names from default_parameters.json."""
         df = self.etl.load(str(SAMPLE_CSV))
         result = self.etl.transform(df)
-        assert "parameters" in result
-        for key in ["p_m", "tau_c", "alpha_T", "delta", "g_y"]:
-            assert key in result["parameters"], f"Missing parameter: {key}"
+        # These are the REAL OG-Core parameter names
+        for key in ["Z", "tau_c", "alpha_T", "inv_tax_credit", "g_y_annual"]:
+            assert key in result["parameters"], f"Missing OG-Core parameter: {key}"
+        # These OLD WRONG names must NOT appear
+        for bad in ["p_m", "delta", "g_y"]:
+            assert bad not in result["parameters"], f"Found incorrect param: {bad}"
 
-    def test_transform_values_are_non_negative(self):
+    def test_Z_normalized_to_base_year(self):
+        """Z should be 1.0 in base year (TFP index)."""
         df = self.etl.load(str(SAMPLE_CSV))
         result = self.etl.transform(df)
-        for key in ["p_m", "tau_c", "alpha_T", "delta"]:
-            for entry in result["parameters"][key]:
-                assert entry["value"] >= 0, f"{key} has negative value"
+        assert result["parameters"]["Z"][0]["value"] == 1.0
 
-    def test_delta_values_capped_at_one(self):
+    def test_tau_c_has_energy_good_index(self):
+        """tau_c is 2D in OG-Core (T+S x I) — each entry needs energy_good_index."""
         df = self.etl.load(str(SAMPLE_CSV))
         result = self.etl.transform(df)
-        for entry in result["parameters"]["delta"]:
-            assert entry["value"] <= 1.0
+        for entry in result["parameters"]["tau_c"]:
+            assert "energy_good_index" in entry
+
+    def test_alpha_T_non_negative(self):
+        df = self.etl.load(str(SAMPLE_CSV))
+        result = self.etl.transform(df)
+        for entry in result["parameters"]["alpha_T"]:
+            assert entry["value"] >= 0
+
+    def test_inv_tax_credit_between_0_and_1(self):
+        df = self.etl.load(str(SAMPLE_CSV))
+        result = self.etl.transform(df)
+        for entry in result["parameters"]["inv_tax_credit"]:
+            assert 0 <= entry["value"] <= 1.0
+
+    def test_g_y_annual_within_ogcore_validator_bounds(self):
+        """OG-Core validates g_y_annual in range [-0.01, 0.08]."""
+        df = self.etl.load(str(SAMPLE_CSV))
+        result = self.etl.transform(df)
+        for entry in result["parameters"]["g_y_annual"]:
+            assert -0.01 <= entry["value"] <= 0.08
 
     def test_schema_validation_passes(self):
         df = self.etl.load(str(SAMPLE_CSV))
@@ -64,69 +85,69 @@ class TestCLEWSToOGCoreETL:
         assert self.etl.validate(result) is True
 
     def test_schema_validation_fails_on_bad_data(self):
-        bad_data = {"version": "1.0", "scenario": "test", "parameters": {}}
+        bad = {"version": "1.1", "scenario": "test", "parameters": {}}
         with pytest.raises(ValueError, match="missing parameters"):
-            self.etl.validate(bad_data)
+            self.etl.validate(bad)
 
-    def test_full_run_saves_file(self):
+    def test_old_wrong_param_names_fail_validation(self):
+        """Regression guard — old param names p_m/delta/g_y must be rejected."""
+        old = {
+            "version": "1.0", "scenario": "test",
+            "parameters": {"p_m": [], "tau_c": [], "alpha_T": [], "delta": [], "g_y": []}
+        }
+        with pytest.raises(ValueError, match="missing parameters"):
+            self.etl.validate(old)
+
+    def test_full_run_saves_file_with_correct_params(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            out_path = os.path.join(tmpdir, "output.json")
-            result = self.etl.run(str(SAMPLE_CSV), out_path)
-            assert os.path.exists(out_path)
-            with open(out_path) as f:
+            out = os.path.join(tmpdir, "output.json")
+            result = self.etl.run(str(SAMPLE_CSV), out)
+            assert os.path.exists(out)
+            with open(out) as f:
                 saved = json.load(f)
-            assert saved["scenario"] == "test"
-            assert "parameters" in saved
+            assert saved["version"] == "1.1"
+            for key in ["Z", "tau_c", "alpha_T", "inv_tax_credit", "g_y_annual"]:
+                assert key in saved["parameters"]
 
-
-# ── OGCoreRunner Tests ────────────────────────────────────────────────────────
 
 class TestOGCoreRunner:
 
     def test_run_returns_success(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Build a params file
-            params = {"version": "1.0", "scenario": "test", "parameters": {}}
-            params_path = os.path.join(tmpdir, "params.json")
-            with open(params_path, "w") as f:
+            params = {"version": "1.1", "scenario": "test", "parameters": {}}
+            p = os.path.join(tmpdir, "params.json")
+            with open(p, "w") as f:
                 json.dump(params, f)
-
             runner = OGCoreRunner(output_dir=os.path.join(tmpdir, "runs"))
-            result = runner.run(scenario="test", params_path=params_path)
-
+            result = runner.run(scenario="test", params_path=p)
             assert result.status == "success"
             assert result.exit_code == 0
-            assert result.output_path is not None
             assert os.path.exists(result.output_path)
 
     def test_run_streams_logs(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            params = {"version": "1.0", "scenario": "test", "parameters": {}}
-            params_path = os.path.join(tmpdir, "params.json")
-            with open(params_path, "w") as f:
+            params = {"version": "1.1", "scenario": "test", "parameters": {}}
+            p = os.path.join(tmpdir, "params.json")
+            with open(p, "w") as f:
                 json.dump(params, f)
-
             collected = []
             runner = OGCoreRunner(
                 output_dir=os.path.join(tmpdir, "runs"),
                 log_callback=lambda line: collected.append(line)
             )
-            result = runner.run(scenario="test", params_path=params_path)
+            runner.run(scenario="test", params_path=p)
             assert len(collected) > 0
             assert any("OGCore" in line for line in collected)
 
     def test_run_output_has_required_keys(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            params = {"version": "1.0", "scenario": "test", "parameters": {}}
-            params_path = os.path.join(tmpdir, "params.json")
-            with open(params_path, "w") as f:
+            params = {"version": "1.1", "scenario": "test", "parameters": {}}
+            p = os.path.join(tmpdir, "params.json")
+            with open(p, "w") as f:
                 json.dump(params, f)
-
             runner = OGCoreRunner(output_dir=os.path.join(tmpdir, "runs"))
-            result = runner.run(scenario="test", params_path=params_path)
-
+            result = runner.run(scenario="test", params_path=p)
             with open(result.output_path) as f:
                 output = json.load(f)
-
             for key in ["Y_path", "r_path", "w_path", "pop_weights", "total_revenue_path"]:
-                assert key in output, f"Missing output key: {key}"
+                assert key in output

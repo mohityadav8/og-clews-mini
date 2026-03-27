@@ -1,73 +1,137 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "OGCoreInputSchema",
-  "description": "Validated exchange file from CLEWS to OG-Core pipeline",
+  "description": "Exchange file from CLEWS to OG-Core. Parameter names verified against ogcore/default_parameters.json.",
   "type": "object",
-  "required": ["version", "scenario", "parameters"],
+  "required": [
+    "version",
+    "scenario",
+    "parameters"
+  ],
   "properties": {
-    "version": { "type": "string" },
-    "scenario": { "type": "string" },
+    "version": {
+      "type": "string"
+    },
+    "scenario": {
+      "type": "string"
+    },
+    "ogcore_param_source": {
+      "type": "string"
+    },
     "parameters": {
       "type": "object",
-      "required": ["p_m", "tau_c", "alpha_T", "delta", "g_y"],
+      "required": [
+        "Z",
+        "tau_c",
+        "alpha_T",
+        "inv_tax_credit",
+        "g_y_annual"
+      ],
       "properties": {
-        "p_m": {
-          "description": "Import energy price index (from ProductionByTechnology)",
+        "Z": {
+          "description": "Total factor productivity in firm production function. Shape (T+S, M). Source: TotalAnnualTechnologyActivityByMode normalized to base-year index.",
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["year", "value"],
+            "required": [
+              "year",
+              "value"
+            ],
             "properties": {
-              "year": { "type": "integer" },
-              "value": { "type": "number", "minimum": 0 }
+              "year": {
+                "type": "integer"
+              },
+              "value": {
+                "type": "number",
+                "minimum": 0
+              }
             }
           }
         },
         "tau_c": {
-          "description": "Carbon tax rate (from AnnualEmissions)",
+          "description": "Consumption tax rate on energy good i. Shape (T+S, I). Source: AnnualEmissions x carbon_price / GDP. energy_good_index specifies which consumption good in OG-Core's I-vector.",
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["year", "value"],
+            "required": [
+              "year",
+              "energy_good_index",
+              "value"
+            ],
             "properties": {
-              "year": { "type": "integer" },
-              "value": { "type": "number", "minimum": 0 }
+              "year": {
+                "type": "integer"
+              },
+              "energy_good_index": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "value": {
+                "type": "number",
+                "minimum": 0
+              }
             }
           }
         },
         "alpha_T": {
-          "description": "Government transfer rate (from TotalDiscountedCost)",
+          "description": "Exogenous ratio of government transfers to GDP. Shape (T+S,). Source: TotalDiscountedCost / GDP_reference.",
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["year", "value"],
+            "required": [
+              "year",
+              "value"
+            ],
             "properties": {
-              "year": { "type": "integer" },
-              "value": { "type": "number", "minimum": 0 }
+              "year": {
+                "type": "integer"
+              },
+              "value": {
+                "type": "number",
+                "minimum": 0
+              }
             }
           }
         },
-        "delta": {
-          "description": "Depreciation/capital formation rate (from ProductionByTechnology renewables)",
+        "inv_tax_credit": {
+          "description": "Investment tax credit rate — reduces cost of new investment. Shape (T+S, M). Source: ProductionByTechnology renewable share of total production.",
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["year", "value"],
+            "required": [
+              "year",
+              "value"
+            ],
             "properties": {
-              "year": { "type": "integer" },
-              "value": { "type": "number", "minimum": 0, "maximum": 1 }
+              "year": {
+                "type": "integer"
+              },
+              "value": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
             }
           }
         },
-        "g_y": {
-          "description": "Technology productivity growth rate (from TotalCapacityAnnual)",
+        "g_y_annual": {
+          "description": "Annual growth rate of labor-augmenting technological change. Scalar float. OG-Core converts internally via rate_conversion(g_y_annual, starting_age, ending_age, S). Source: TotalCapacityAnnual year-on-year growth.",
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["year", "value"],
+            "required": [
+              "year",
+              "value"
+            ],
             "properties": {
-              "year": { "type": "integer" },
-              "value": { "type": "number" }
+              "year": {
+                "type": "integer"
+              },
+              "value": {
+                "type": "number",
+                "minimum": -0.01,
+                "maximum": 0.08
+              }
             }
           }
         }
