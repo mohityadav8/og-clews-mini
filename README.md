@@ -1,6 +1,6 @@
 # OG-CLEWS Mini Integration Pipeline
 
-A working prototype of the backend integration described in my GSoC 2026 proposal:  
+A working prototype of the backend integration described as:  
 **OG–CLEWS: Integrating Open-Source Economic and Environmental Models for Sustainable Development**
 
 This project demonstrates the three core backend components I plan to build in MUIOGO:
